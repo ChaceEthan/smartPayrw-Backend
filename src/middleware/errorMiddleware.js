@@ -5,7 +5,12 @@ export const notFound = (req, res, next) => {
 };
 
 export const errorHandler = (err, req, res, next) => {
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  const statusCode =
+    err.statusCode || err.status || (res.statusCode === 200 ? 500 : res.statusCode);
 
   if (err.name === "ValidationError") {
     return res.status(400).json({
