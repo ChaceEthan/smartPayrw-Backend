@@ -33,9 +33,11 @@ const summarizeEmployees = (employees = []) => {
 
     return {
       id: record._id?.toString?.() || record.id,
+      name: record.name || [record.firstName, record.lastName].filter(Boolean).join(" ").trim(),
       firstName: record.firstName,
       lastName: record.lastName,
       salary,
+      companyId: record.companyId?.toString?.() || record.companyId,
       hasRSSBNumber: Boolean(record.rssbNumber),
     };
   });
@@ -68,6 +70,7 @@ const summarizeCompanies = (companies = []) => {
       id: record._id?.toString?.() || record.id,
       name: record.name,
       tin: record.tin,
+      businessType: record.businessType,
     };
   });
 
@@ -128,7 +131,7 @@ const buildPayrollTaxSummary = (employeesData) => {
   };
 };
 
-const getDatabaseContext = async () => {
+const getDatabaseContext = async (userId, tin) => {
   if (mongoose.connection.readyState !== 1) {
     return {
       employeesData: null,
@@ -136,22 +139,38 @@ const getDatabaseContext = async () => {
     };
   }
 
+  const query = userId ? { owner: userId } : {};
+  const tinQuery = tin ? { ...query, tin } : null;
+  const matchedCompany = tinQuery
+    ? await Company.findOne(tinQuery).select("name tin businessType").lean()
+    : null;
+  const employeeQuery = matchedCompany
+    ? { ...query, companyId: matchedCompany._id }
+    : query;
   const [employees, companies] = await Promise.all([
-    Employee.find({})
-      .select("firstName lastName salary rssbNumber")
+    Employee.find(employeeQuery)
+      .select("name firstName lastName salary companyId rssbNumber")
       .sort({ createdAt: -1 })
       .limit(MAX_CONTEXT_RECORDS)
       .lean(),
-    Company.find({})
-      .select("name tin")
-      .sort({ createdAt: -1 })
-      .limit(MAX_CONTEXT_RECORDS)
-      .lean(),
+    matchedCompany
+      ? Promise.resolve([matchedCompany])
+      : Company.find(query)
+          .select("name tin businessType")
+          .sort({ createdAt: -1 })
+          .limit(MAX_CONTEXT_RECORDS)
+          .lean(),
   ]);
 
   return {
     employeesData: summarizeEmployees(employees),
     companyData: summarizeCompanies(companies),
+    tinLookup: tin
+      ? {
+          tin,
+          found: Boolean(matchedCompany),
+        }
+      : null,
   };
 };
 
@@ -161,12 +180,17 @@ export const buildAIContextPayload = async ({
   payrollContext,
   employeesData,
   companyData,
+  userId,
+  tin,
 }) => {
-  const databaseContext = await getDatabaseContext();
+  const databaseContext = await getDatabaseContext(userId, tin);
+  const requestEmployeesData = userId
+    ? null
+    : summarizeEmployees(employeesData) || employeesData;
+  const requestCompanyData = userId ? null : summarizeCompanies(companyData) || companyData;
   const finalEmployeesData =
-    summarizeEmployees(employeesData) || employeesData || databaseContext.employeesData;
-  const finalCompanyData =
-    summarizeCompanies(companyData) || companyData || databaseContext.companyData;
+    databaseContext.employeesData || requestEmployeesData;
+  const finalCompanyData = databaseContext.companyData || requestCompanyData;
   const pensionData = {
     ...buildPensionSummaryFromEmployees(getEmployeesForCalculations(finalEmployeesData)),
     description:
@@ -179,6 +203,7 @@ export const buildAIContextPayload = async ({
     payrollContext: payrollContext || null,
     employeesData: finalEmployeesData,
     companyData: finalCompanyData,
+    tinLookup: databaseContext.tinLookup,
     pensionData,
     taxData: buildPayrollTaxSummary(finalEmployeesData),
     complianceData: getTaxContextData().compliance,

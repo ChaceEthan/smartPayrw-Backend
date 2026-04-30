@@ -2,6 +2,7 @@
 import { getAIResponse } from "../services/aiService.js";
 import { buildAIContextPayload } from "../services/aiContextService.js";
 import {
+  detectTIN,
   getLocalIntelligentResponse,
   getPayrollIntelligenceResponse,
   normalizeLanguage,
@@ -27,12 +28,15 @@ export const chatWithAI = async (req, res) => {
 
   try {
     const trimmedMessage = userMessage.trim();
+    const tin = detectTIN(trimmedMessage);
     const aiContext = await buildAIContextPayload({
       message: trimmedMessage,
       language: selectedLanguage,
       payrollContext: payrollContext || context,
       employeesData,
       companyData,
+      tin,
+      userId: req.user?._id,
     });
 
     const payrollIntelligence = getPayrollIntelligenceResponse(
@@ -70,8 +74,8 @@ export const chatWithAI = async (req, res) => {
         message: userMessage.trim(),
         language: selectedLanguage,
         payrollContext: payrollContext || context || null,
-        employeesData: employeesData || null,
-        companyData: companyData || null,
+        employeesData: null,
+        companyData: null,
       }),
       language: selectedLanguage,
       type: "local_fallback",

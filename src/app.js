@@ -1,3 +1,4 @@
+// @ts-nocheck
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
@@ -63,6 +64,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/compliance", complianceRoutes);
+app.use("/api/company", companyRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/payments", paymentRoutes);

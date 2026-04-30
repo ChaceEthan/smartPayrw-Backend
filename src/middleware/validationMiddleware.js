@@ -1,10 +1,11 @@
+// @ts-nocheck
 export const validateEmployee = (req, res, next) => {
-  const { firstName, lastName, salary, bankName, bankAccountNumber, rssbNumber } = req.body;
+  const { name, firstName, lastName, salary, companyId } = req.body;
+  const employeeName = name || [firstName, lastName].filter(Boolean).join(" ").trim();
 
-  if (!firstName || !lastName || salary === undefined || !bankName || !bankAccountNumber || !rssbNumber) {
+  if (!employeeName || salary === undefined || !companyId) {
     return res.status(400).json({
-      message:
-        "All fields are required: firstName, lastName, salary, bankName, bankAccountNumber, and rssbNumber",
+      message: "Employee name, salary, and companyId are required",
     });
   }
 
@@ -15,5 +16,6 @@ export const validateEmployee = (req, res, next) => {
   }
 
   req.body.salary = numericSalary;
+  req.body.name = employeeName;
   next();
 };

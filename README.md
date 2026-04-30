@@ -35,6 +35,7 @@ Optional values include `JWT_EXPIRES_IN`, `OPENROUTER_MODEL`, `OPENROUTER_TIMEOU
 - `POST /api/ai/chat`
 - `GET /api/analytics/dashboard`
 - `GET /api/compliance`
+- `POST /api/company/register`
 - `GET|POST /api/companies`
 - `GET|POST /api/employees`
 - `GET /api/payments`

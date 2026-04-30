@@ -139,6 +139,24 @@ const getCompaniesFromContext = (contextData = {}) => {
   return [companyData];
 };
 
+const getEmployeesFromContext = (contextData = {}) => {
+  const employeesData = contextData?.employeesData;
+
+  if (!employeesData) {
+    return [];
+  }
+
+  if (Array.isArray(employeesData)) {
+    return employeesData;
+  }
+
+  if (Array.isArray(employeesData.employees)) {
+    return employeesData.employees;
+  }
+
+  return [];
+};
+
 export const detectTIN = (message) => {
   const matches = String(message || "").matchAll(
     /(?:^|\D)(\d(?:[\s-]?\d){8})(?=\D|$)/g
@@ -184,41 +202,88 @@ const buildTINAnalysis = (tin, contextData = {}) => {
   const matchedCompany = companies.find(
     (company) => String(company?.tin || "").replace(/\D/g, "") === tin
   );
-  const companyName = matchedCompany?.name || matchedCompany?.company || "Sample Ltd";
+
+  if (!matchedCompany) {
+    return {
+      tin,
+      registered: false,
+      message: "Company not registered in SmartPay",
+    };
+  }
+
+  const companyId = matchedCompany.id || matchedCompany._id;
+  const employees = getEmployeesFromContext(contextData).filter((employee) => {
+    if (!companyId) {
+      return true;
+    }
+
+    return String(employee.companyId || "") === String(companyId);
+  });
+  const salaryTotal = employees.reduce(
+    (total, employee) => total + (Number(employee.salary) || 0),
+    0
+  );
+  const paye = employees.reduce(
+    (total, employee) => total + calculatePAYE(Number(employee.salary) || 0),
+    0
+  );
+  const rssb = employees.reduce((total, employee) => {
+    const contribution = calculateRSSB(Number(employee.salary) || 0);
+    return total + contribution.totalRSSB;
+  }, 0);
+  const companyName = matchedCompany.name || matchedCompany.company;
 
   return {
     tin,
+    registered: true,
     company: companyName,
-    taxStatus: "Active",
-    obligations: ["PAYE", "VAT", "RSSB", "CBHI"],
-    estimatedLiabilities: "Based on payroll data",
+    businessType: matchedCompany.businessType,
     companyProfile: {
       companyName,
       tin,
-      registrationStatus: "Active",
-      source: matchedCompany ? "SmartPayRW company data" : "Simulated RRA/RSSB lookup",
+      businessType: matchedCompany.businessType,
+      registrationStatus: "Registered in SmartPay",
+      source: "SmartPayRW company data",
     },
     taxObligations: [
-      "PAYE on employee taxable income",
-      "RSSB pension, maternity, and occupational hazards contributions",
-      "CBHI where applicable",
-      "VAT if the company is registered or meets the required threshold",
+      "PAYE on employee taxable income when payroll is processed",
+      "RSSB pension and related statutory payroll contributions",
+      "CBHI where applicable to the employee or business arrangement",
+      "VAT only if the company is registered for VAT or meets the required threshold",
     ],
     complianceStatus: {
-      rra: "Active",
-      rssb: "Payroll reconciliation required monthly",
-      cbhi: "Verify employee coverage where applicable",
+      smartPay: "Registered",
+      rra: "Verify with RRA before filing",
+      rssb: "Use stored employee payroll records for monthly reconciliation",
+      cbhi: "Verify coverage where applicable",
       filingReadiness: "Review payroll, declarations, and payments before filing",
     },
+    payrollSummary: {
+      employeeCount: employees.length,
+      totalSalaries: salaryTotal,
+      estimatedPAYE: paye,
+      estimatedRSSB: rssb,
+    },
     payrollInsights: [
-      "Confirm every active employee has a salary record before payroll processing.",
-      "Reconcile PAYE and RSSB totals with payroll before declaration.",
-      "Keep payslips, contracts, and payment evidence ready for compliance review.",
+      `${employees.length} employee record(s) are linked to this company in SmartPay.`,
+      `Stored monthly salary total is ${formatRwf(salaryTotal)}.`,
+      `Estimated PAYE from stored salaries is ${formatRwf(paye)} and estimated RSSB is ${formatRwf(rssb)}.`,
     ],
   };
 };
 
 const buildTINMessage = (language, tinAnalysis) => {
+  if (!tinAnalysis.registered) {
+    const messages = {
+      en: `Company not registered in SmartPay for TIN ${tinAnalysis.tin}. Please register the company first.`,
+      rw: `Ikigo gifite TIN ${tinAnalysis.tin} ntikirandikwa muri SmartPay. Banza wandikishe ikigo.`,
+      fr: `La societe avec le TIN ${tinAnalysis.tin} n'est pas enregistree dans SmartPay. Veuillez d'abord enregistrer la societe.`,
+      sw: `Kampuni yenye TIN ${tinAnalysis.tin} haijasajiliwa kwenye SmartPay. Tafadhali sajili kampuni kwanza.`,
+    };
+
+    return messages[normalizeLanguage(language)];
+  }
+
   const obligationList = tinAnalysis.taxObligations.map((item) => `- ${item}`);
   const insightList = tinAnalysis.payrollInsights.map((item) => `- ${item}`);
 
@@ -226,42 +291,46 @@ const buildTINMessage = (language, tinAnalysis) => {
     en: [
       "TIN analysis result:",
       `Company profile: ${tinAnalysis.companyProfile.companyName} (${tinAnalysis.tin})`,
+      `Business type: ${tinAnalysis.companyProfile.businessType}`,
       `Compliance status: RRA ${tinAnalysis.complianceStatus.rra}; RSSB ${tinAnalysis.complianceStatus.rssb}; CBHI ${tinAnalysis.complianceStatus.cbhi}.`,
       "Tax obligations:",
       ...obligationList,
       "Payroll insights:",
       ...insightList,
-      "This is simulated SmartPayRW analysis and should be verified with official RRA/RSSB records before filing.",
+      "This uses company and employee records stored in SmartPay.",
     ],
     rw: [
       "Ibyavuye mu isesengura rya TIN:",
       `Umwirondoro w'ikigo: ${tinAnalysis.companyProfile.companyName} (${tinAnalysis.tin})`,
+      `Ubwoko bw'ubucuruzi: ${tinAnalysis.companyProfile.businessType}`,
       `Imiterere yo kubahiriza: RRA ${tinAnalysis.complianceStatus.rra}; RSSB ${tinAnalysis.complianceStatus.rssb}; CBHI ${tinAnalysis.complianceStatus.cbhi}.`,
       "Inshingano z'imisoro:",
       ...obligationList,
       "Inama kuri payroll:",
       ...insightList,
-      "Iri ni isesengura ry'igerageza rya SmartPayRW; ribanze kwemezwa na RRA/RSSB mbere yo gutanga declarations.",
+      "Ibi bikoresha amakuru y'ikigo n'abakozi ari muri SmartPay.",
     ],
     fr: [
       "Resultat de l'analyse TIN:",
       `Profil de la societe: ${tinAnalysis.companyProfile.companyName} (${tinAnalysis.tin})`,
+      `Type d'activite: ${tinAnalysis.companyProfile.businessType}`,
       `Statut de conformite: RRA ${tinAnalysis.complianceStatus.rra}; RSSB ${tinAnalysis.complianceStatus.rssb}; CBHI ${tinAnalysis.complianceStatus.cbhi}.`,
       "Obligations fiscales:",
       ...obligationList,
       "Apercus payroll:",
       ...insightList,
-      "Cette analyse SmartPayRW est simulee et doit etre verifiee avec les dossiers officiels RRA/RSSB avant declaration.",
+      "Cette reponse utilise les donnees societe et employes enregistrees dans SmartPay.",
     ],
     sw: [
       "Matokeo ya uchambuzi wa TIN:",
       `Wasifu wa kampuni: ${tinAnalysis.companyProfile.companyName} (${tinAnalysis.tin})`,
+      `Aina ya biashara: ${tinAnalysis.companyProfile.businessType}`,
       `Hali ya uzingatiaji: RRA ${tinAnalysis.complianceStatus.rra}; RSSB ${tinAnalysis.complianceStatus.rssb}; CBHI ${tinAnalysis.complianceStatus.cbhi}.`,
       "Majukumu ya kodi:",
       ...obligationList,
       "Maarifa ya payroll:",
       ...insightList,
-      "Uchambuzi huu wa SmartPayRW ni wa majaribio na unapaswa kuthibitishwa na rekodi rasmi za RRA/RSSB kabla ya kuwasilisha.",
+      "Jibu hili linatumia rekodi za kampuni na wafanyakazi zilizohifadhiwa SmartPay.",
     ],
   };
 
@@ -592,7 +661,7 @@ export const getPayrollIntelligenceResponse = (
     const tinAnalysis = buildTINAnalysis(tin, contextData);
 
     return {
-      type: "tin_analysis",
+      type: tinAnalysis.registered ? "tin_analysis" : "tin_not_registered",
       message: buildTINMessage(language, tinAnalysis),
       data: tinAnalysis,
     };

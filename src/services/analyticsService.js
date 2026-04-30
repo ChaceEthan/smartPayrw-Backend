@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Employee from "../models/Employee.js";
 import Transaction from "../models/Transaction.js";
 import { calculatePensionForSalary } from "./pensionService.js";
@@ -51,8 +52,9 @@ const buildPayrollAnalytics = (employees) => {
   );
 };
 
-const buildPaymentStats = async () => {
+const buildPaymentStats = async (match = {}) => {
   const stats = await Transaction.aggregate([
+    { $match: match },
     {
       $group: {
         _id: {
@@ -92,16 +94,28 @@ const buildPaymentStats = async () => {
   );
 };
 
-export const getDashboardAnalytics = async ({ limit = 10 } = {}) => {
+export const getDashboardAnalytics = async ({ companyId, limit = 10, userId } = {}) => {
   const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 25);
+  const employeeQuery = {};
+  const transactionQuery = {};
+
+  if (userId) {
+    employeeQuery.owner = userId;
+    transactionQuery.requestedBy = userId;
+  }
+
+  if (companyId) {
+    employeeQuery.companyId = companyId;
+  }
+
   const [employees, recentTransactions, paymentStats] = await Promise.all([
-    Employee.find({}).select("salary").lean(),
-    Transaction.find({})
+    Employee.find(employeeQuery).select("salary companyId").lean(),
+    Transaction.find(transactionQuery)
       .sort({ createdAt: -1 })
       .limit(safeLimit)
       .select("provider amount currency phoneNumber reference status simulated createdAt")
       .lean(),
-    buildPaymentStats(),
+    buildPaymentStats(transactionQuery),
   ]);
 
   const payrollAnalytics = buildPayrollAnalytics(employees);

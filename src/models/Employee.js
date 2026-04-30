@@ -1,15 +1,29 @@
-// @ts-nocheck
-import mongoose from 'mongoose'; // No change needed
+import mongoose from "mongoose";
 
-// Schema for individual employees and their base salary details
-const employeeSchema = new mongoose.Schema({
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  salary: { type: Number, required: true },
-  bankName: { type: String, required: true },
-  bankAccountNumber: { type: String, required: true, unique: true },
-  rssbNumber: { type: String, required: true, unique: true },
-}, { timestamps: true });
+const employeeSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    salary: { type: Number, required: true, min: 1 },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+      index: true,
+    },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    firstName: { type: String, trim: true },
+    lastName: { type: String, trim: true },
+    bankName: { type: String, trim: true },
+    bankAccountNumber: { type: String, unique: true, sparse: true, trim: true },
+    rssbNumber: { type: String, unique: true, sparse: true, trim: true },
+  },
+  { timestamps: true }
+);
 
-const Employee = mongoose.model('Employee', employeeSchema);
+const Employee = mongoose.model("Employee", employeeSchema);
 export default Employee;

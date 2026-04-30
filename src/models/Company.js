@@ -1,11 +1,19 @@
-// @ts-nocheck
-import mongoose from 'mongoose'; // No change needed
+import mongoose from "mongoose";
 
-// Schema for SME entity details in Rwanda
-const companySchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  tin: { type: String, required: true, unique: true },
-}, { timestamps: true });
+const companySchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    tin: { type: String, required: true, unique: true, trim: true, index: true },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    businessType: { type: String, required: true, trim: true },
+  },
+  { timestamps: true }
+);
 
-const Company = mongoose.model('Company', companySchema);
+const Company = mongoose.model("Company", companySchema);
 export default Company;

@@ -59,7 +59,7 @@ export const buildPensionSummaryFromEmployees = (employees = []) => {
   );
 };
 
-export const getPensionSummary = async ({ grossSalary } = {}) => {
+export const getPensionSummary = async ({ grossSalary, userId, companyId } = {}) => {
   let summary;
 
   if (grossSalary !== undefined && grossSalary !== null && grossSalary !== "") {
@@ -68,7 +68,17 @@ export const getPensionSummary = async ({ grossSalary } = {}) => {
       employeeCount: 1,
     };
   } else {
-    const employees = await Employee.find({}).select("salary").lean();
+    const query = {};
+
+    if (userId) {
+      query.owner = userId;
+    }
+
+    if (companyId) {
+      query.companyId = companyId;
+    }
+
+    const employees = await Employee.find(query).select("salary").lean();
     summary = buildPensionSummaryFromEmployees(employees);
   }
 
