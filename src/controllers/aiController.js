@@ -1,17 +1,80 @@
+// @ts-nocheck
 import { getAIResponse } from "../services/aiService.js";
+import { buildAIContextPayload } from "../services/aiContextService.js";
+import {
+  getLocalIntelligentResponse,
+  getPayrollIntelligenceResponse,
+  normalizeLanguage,
+} from "../services/payrollIntelligenceService.js";
 
 export const chatWithAI = async (req, res) => {
-  try {
-    const { message, temperature } = req.body;
+  const {
+    message,
+    prompt,
+    context,
+    payrollContext,
+    employeesData,
+    companyData,
+    language,
+    temperature,
+  } = req.body || {};
+  const userMessage = message || prompt;
+  const selectedLanguage = normalizeLanguage(language);
 
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return res.status(400).json({ message: "Message is required" });
+  if (!userMessage || typeof userMessage !== "string" || !userMessage.trim()) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  try {
+    const trimmedMessage = userMessage.trim();
+    const aiContext = await buildAIContextPayload({
+      message: trimmedMessage,
+      language: selectedLanguage,
+      payrollContext: payrollContext || context,
+      employeesData,
+      companyData,
+    });
+
+    const payrollIntelligence = getPayrollIntelligenceResponse(
+      trimmedMessage,
+      selectedLanguage,
+      aiContext
+    );
+
+    if (payrollIntelligence) {
+      return res.status(200).json({
+        message: payrollIntelligence.message,
+        language: selectedLanguage,
+        type: payrollIntelligence.type,
+        data: payrollIntelligence.data,
+      });
     }
 
-    const response = await getAIResponse(message.trim(), { temperature });
-    return res.status(200).json({ response });
+    const response = await getAIResponse(trimmedMessage, {
+      context: aiContext,
+      language: selectedLanguage,
+      temperature,
+    });
+    const safeResponse =
+      response?.trim() ||
+      getLocalIntelligentResponse(trimmedMessage, selectedLanguage, aiContext);
+
+    return res.status(200).json({
+      message: safeResponse,
+      language: selectedLanguage,
+    });
   } catch (error) {
     console.error(`AI request failed: ${error.message}`);
-    return res.status(502).json({ message: "AI request failed" });
+    return res.status(200).json({
+      message: getLocalIntelligentResponse(userMessage.trim(), selectedLanguage, {
+        message: userMessage.trim(),
+        language: selectedLanguage,
+        payrollContext: payrollContext || context || null,
+        employeesData: employeesData || null,
+        companyData: companyData || null,
+      }),
+      language: selectedLanguage,
+      type: "local_fallback",
+    });
   }
 };

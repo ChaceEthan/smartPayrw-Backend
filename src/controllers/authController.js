@@ -1,3 +1,4 @@
+// @ts-nocheck
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -60,8 +61,14 @@ export const loginUser = async (req, res, next) => {
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: "Invalid email or password" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatches) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     return res.status(200).json(authResponse(user));

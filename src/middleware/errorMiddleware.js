@@ -19,6 +19,10 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(400).json({ message: "Invalid resource identifier" });
   }
 
+  if (err.code === 11000) {
+    return res.status(409).json({ message: "Resource already exists" });
+  }
+
   res.status(statusCode).json({
     message: err.message || "Server error",
     ...(process.env.NODE_ENV === "production" ? {} : { stack: err.stack }),

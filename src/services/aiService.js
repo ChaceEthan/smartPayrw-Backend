@@ -1,14 +1,56 @@
+// @ts-nocheck
 import axios from "axios";
+import {
+  getLanguageName,
+  getLocalIntelligentResponse,
+  normalizeLanguage,
+} from "./payrollIntelligenceService.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_MODEL = "openai/gpt-4o-mini";
+const MASTER_SYSTEM_PROMPT = `You are SmartPayRW AI, a professional payroll and tax assistant for businesses in Rwanda.
+
+You help users with:
+- employee management
+- payroll calculations
+- tax obligations (PAYE, RSSB, CBHI, maternity, occupational hazards)
+- compliance with RRA and RSSB
+- company financial responsibilities
+
+If a user provides a TIN number, automatically analyze the company and return:
+- company profile
+- tax obligations
+- compliance status
+- payroll insights
+
+Always give clear, practical, and actionable answers.`;
+
+const toNumber = (value, fallback) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const buildAIContextPayload = (message, language, context = {}) => {
+  return {
+    message,
+    language,
+    payrollContext: context.payrollContext || null,
+    employeesData: context.employeesData || null,
+    companyData: context.companyData || null,
+  };
+};
 
 export const getAIResponse = async (message, options = {}) => {
-  if (!process.env.OPENROUTER_API_KEY) {
-    throw new Error("OPENROUTER_API_KEY is not configured");
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const language = normalizeLanguage(options.language);
+  const contextPayload = buildAIContextPayload(message, language, options.context);
+
+  if (!apiKey) {
+    return getLocalIntelligentResponse(message, language, contextPayload);
   }
 
   const headers = {
-    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
     "X-Title": process.env.APP_NAME || "SmartPayRW Backend",
   };
@@ -18,16 +60,33 @@ export const getAIResponse = async (message, options = {}) => {
   }
 
   try {
+    const messages = [
+      {
+        role: "system",
+        content: [
+          MASTER_SYSTEM_PROMPT,
+          `Respond only in ${getLanguageName(language)}.`,
+          "Answer any SmartPayRW business, payroll, employee, tax, compliance, salary, or company operations question with explanation, steps, and practical advice.",
+          "Use the supplied JSON context when available. If data is missing, say what should be verified instead of inventing private records.",
+        ].join("\n"),
+      },
+    ];
+
+    messages.push({
+      role: "user",
+      content: JSON.stringify(contextPayload, null, 2),
+    });
+
     const response = await axios.post(
       OPENROUTER_URL,
       {
-        model: process.env.OPENROUTER_MODEL || "mistralai/mistral-7b-instruct",
-        messages: [{ role: "user", content: message }],
-        temperature: options.temperature ?? 0.3,
-        max_tokens: Number(process.env.OPENROUTER_MAX_TOKENS) || 700,
+        model: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+        messages,
+        temperature: toNumber(options.temperature, 0.3),
+        max_tokens: toNumber(process.env.OPENROUTER_MAX_TOKENS, 700),
       },
       {
-        timeout: Number(process.env.OPENROUTER_TIMEOUT_MS) || 30000,
+        timeout: toNumber(process.env.OPENROUTER_TIMEOUT_MS, 30000),
         headers,
       }
     );
@@ -40,11 +99,7 @@ export const getAIResponse = async (message, options = {}) => {
 
     return content;
   } catch (error) {
-    const message =
-      error.response?.data?.error?.message ||
-      error.response?.data?.message ||
-      error.message ||
-      "AI Service Error";
-    throw new Error(message);
+    console.error(`OpenRouter request failed: ${error.message}`);
+    return getLocalIntelligentResponse(message, language, contextPayload);
   }
 };
