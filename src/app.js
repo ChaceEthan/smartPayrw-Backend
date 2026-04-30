@@ -5,7 +5,9 @@ import mongoose from "mongoose";
 
 import aiRoutes from "./routes/aiRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import businessRoutes from "./routes/businessRoutes.js";
 import complianceRoutes from "./routes/complianceRoutes.js";
 import companyRoutes from "./routes/companyRoutes.js";
 import employeeRoutes from "./routes/employeeRoutes.js";
@@ -13,6 +15,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import pensionRoutes from "./routes/pensionRoutes.js";
 import payrollRoutes from "./routes/payrollRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import taxRoutes from "./routes/taxRoutes.js";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 
 const app = express();
@@ -61,8 +64,10 @@ app.get(["/health", "/api/health"], (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/business", businessRoutes);
 app.use("/api/compliance", complianceRoutes);
 app.use("/api/company", companyRoutes);
 app.use("/api/companies", companyRoutes);
@@ -71,6 +76,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/pension", pensionRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/tax", taxRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

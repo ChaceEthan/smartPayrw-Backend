@@ -33,7 +33,10 @@ Optional values include `JWT_EXPIRES_IN`, `OPENROUTER_MODEL`, `OPENROUTER_TIMEOU
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/ai/chat`
+- `GET /api/admin/overview`
 - `GET /api/analytics/dashboard`
+- `POST /api/business/transactions`
+- `GET /api/business/transactions`
 - `GET /api/compliance`
 - `POST /api/company/register`
 - `GET|POST /api/companies`
@@ -47,8 +50,10 @@ Optional values include `JWT_EXPIRES_IN`, `OPENROUTER_MODEL`, `OPENROUTER_TIMEOU
 - `POST /api/payroll/calculate`
 - `GET /api/payroll/history`
 - `GET /api/reports/tax`
+- `GET /api/tax/dashboard/:tin`
+- `GET /api/tax/payment-guide`
 
-Protected endpoints require `Authorization: Bearer <token>`. Mobile list endpoints accept `page` and `limit` query parameters where supported.
+Protected endpoints require `Authorization: Bearer <token>`. `GET /api/admin/overview` requires an `admin` user role. Tax payment guide responses are instructional only and do not process real tax payments. Mobile list endpoints accept `page` and `limit` query parameters where supported.
 
 ## Render
 

@@ -15,6 +15,8 @@ You help users with:
 - payroll calculations
 - tax obligations (PAYE, RSSB, CBHI, maternity, occupational hazards)
 - compliance with RRA and RSSB
+- TIN-based tax dashboard interpretation
+- EBM-lite business sales and stock summaries
 - company financial responsibilities
 
 If a user provides a TIN number, automatically analyze the company and return:
@@ -39,6 +41,8 @@ const buildAIContextPayload = (message, language, context = {}) => {
     companyData: context.companyData || null,
     pensionData: context.pensionData || null,
     taxData: context.taxData || null,
+    taxDashboardData: context.taxDashboardData || null,
+    businessData: context.businessData || null,
     complianceData: context.complianceData || null,
   };
 };
@@ -70,7 +74,7 @@ export const getAIResponse = async (message, options = {}) => {
           MASTER_SYSTEM_PROMPT,
           `Respond only in ${getLanguageName(language)}.`,
           "Answer any SmartPayRW business, payroll, employee, tax, compliance, salary, or company operations question with explanation, steps, and practical advice.",
-          "Use pensionData, taxData, complianceData, and employeesData to answer RSSB and pension questions.",
+          "Use pensionData, taxData, taxDashboardData, complianceData, businessData, and employeesData to answer RSSB, pension, tax due, and business performance questions.",
           "Use the supplied JSON context when available. If data is missing, say what should be verified instead of inventing private records.",
         ].join("\n"),
       },

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import jwt from "jsonwebtoken";
 
 import User from "../models/User.js";
@@ -29,4 +30,16 @@ export const protect = async (req, res, next) => {
   } catch (error) {
     return res.status(401).json({ message: "Not authorized, token invalid" });
   }
+};
+
+export const authorizeRoles = (...allowedRoles) => (req, res, next) => {
+  const userRole = req.user?.role;
+
+  if (!userRole || !allowedRoles.includes(userRole)) {
+    return res.status(403).json({
+      message: "Forbidden: insufficient permissions",
+    });
+  }
+
+  return next();
 };

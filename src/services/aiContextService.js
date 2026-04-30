@@ -1,10 +1,12 @@
 // @ts-nocheck
 import mongoose from "mongoose";
 
+import BusinessTransaction from "../models/BusinessTransaction.js";
 import Company from "../models/Company.js";
 import Employee from "../models/Employee.js";
 import { getTaxContextData } from "./complianceService.js";
 import { buildPensionSummaryFromEmployees } from "./pensionService.js";
+import { getTaxDashboardByTin } from "./taxDashboardService.js";
 import { calculatePAYE } from "../utils/calculatePAYE.js";
 import { calculateRSSB } from "../utils/calculateRSSB.js";
 
@@ -81,6 +83,65 @@ const summarizeCompanies = (companies = []) => {
   };
 };
 
+const summarizeBusinessTransactions = (transactions = [], totalCount = transactions.length) => {
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return null;
+  }
+
+  const dailySales = {};
+  const stockSummary = {};
+  const safeTransactions = transactions.slice(0, MAX_CONTEXT_RECORDS).map((transaction) => {
+    const record = toPlainObject(transaction) || {};
+    const amount = Number(record.amount) || 0;
+    const quantity = Number(record.quantity) || 1;
+    const productOrService = record.productOrService || "Unspecified";
+    const date = record.transactionDate
+      ? new Date(record.transactionDate).toISOString().slice(0, 10)
+      : null;
+
+    if (date) {
+      dailySales[date] = {
+        date,
+        totalSales: (dailySales[date]?.totalSales || 0) + amount,
+        transactionCount: (dailySales[date]?.transactionCount || 0) + 1,
+        quantitySold: (dailySales[date]?.quantitySold || 0) + quantity,
+      };
+    }
+
+    stockSummary[productOrService] = {
+      productOrService,
+      quantitySold: (stockSummary[productOrService]?.quantitySold || 0) + quantity,
+      totalSales: (stockSummary[productOrService]?.totalSales || 0) + amount,
+      transactionCount:
+        (stockSummary[productOrService]?.transactionCount || 0) + 1,
+    };
+
+    return {
+      id: record._id?.toString?.() || record.id,
+      productOrService,
+      amount,
+      quantity,
+      date,
+      companyId: record.companyId?.toString?.() || record.companyId,
+    };
+  });
+
+  const totalSales = safeTransactions.reduce(
+    (total, transaction) => total + transaction.amount,
+    0
+  );
+
+  return {
+    count: totalCount,
+    includedCount: safeTransactions.length,
+    totalSales,
+    averageSale: safeTransactions.length ? Math.round(totalSales / safeTransactions.length) : 0,
+    transactions: safeTransactions,
+    dailySales: Object.values(dailySales).sort((a, b) => b.date.localeCompare(a.date)),
+    stockSummary: Object.values(stockSummary).sort((a, b) => b.totalSales - a.totalSales),
+  };
+};
+
 const getEmployeesForCalculations = (employeesData) => {
   if (!employeesData) {
     return [];
@@ -136,6 +197,8 @@ const getDatabaseContext = async (userId, tin) => {
     return {
       employeesData: null,
       companyData: null,
+      businessData: null,
+      taxDashboardData: null,
     };
   }
 
@@ -161,10 +224,42 @@ const getDatabaseContext = async (userId, tin) => {
           .limit(MAX_CONTEXT_RECORDS)
           .lean(),
   ]);
+  const businessQuery = { ...query };
+  const companyIds = matchedCompany
+    ? [matchedCompany._id]
+    : companies.map((company) => company._id).filter(Boolean);
+
+  if (companyIds.length > 0) {
+    businessQuery.companyId = { $in: companyIds };
+  }
+
+  const [businessTransactions, businessTotal] =
+    companyIds.length > 0
+      ? await Promise.all([
+          BusinessTransaction.find(businessQuery)
+            .select("productOrService amount quantity transactionDate companyId")
+            .sort({ transactionDate: -1, createdAt: -1 })
+            .limit(MAX_CONTEXT_RECORDS)
+            .lean(),
+          BusinessTransaction.countDocuments(businessQuery),
+        ])
+      : [[], 0];
+  const dashboardTIN = tin || companies[0]?.tin || null;
+  const taxDashboardData = dashboardTIN
+    ? await getTaxDashboardByTin({
+        tin: dashboardTIN,
+        user: {
+          _id: userId,
+          role: "user",
+        },
+      })
+    : null;
 
   return {
     employeesData: summarizeEmployees(employees),
     companyData: summarizeCompanies(companies),
+    businessData: summarizeBusinessTransactions(businessTransactions, businessTotal),
+    taxDashboardData,
     tinLookup: tin
       ? {
           tin,
@@ -206,6 +301,8 @@ export const buildAIContextPayload = async ({
     tinLookup: databaseContext.tinLookup,
     pensionData,
     taxData: buildPayrollTaxSummary(finalEmployeesData),
+    taxDashboardData: databaseContext.taxDashboardData,
+    businessData: databaseContext.businessData,
     complianceData: getTaxContextData().compliance,
   };
 };

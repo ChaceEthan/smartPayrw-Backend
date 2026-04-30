@@ -5,7 +5,7 @@ import { protect } from '../middleware/authMiddleware.js'; // Corrected path
 
 const router = express.Router();
 
-router.get('/', getPayrollHistory);
+router.get('/', protect, getPayrollHistory);
 router.post('/calculate', protect, calculatePayroll);
 router.get('/history', protect, getPayrollHistory);
 

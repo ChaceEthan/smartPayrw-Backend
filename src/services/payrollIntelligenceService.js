@@ -103,6 +103,42 @@ const COMPANY_KEYWORDS = [
   "ikigo",
 ];
 
+const BUSINESS_ACTIVITY_KEYWORDS = [
+  "business",
+  "sales",
+  "sale",
+  "stock",
+  "inventory",
+  "transaction",
+  "transactions",
+  "revenue",
+  "performance",
+  "ubucuruzi",
+  "buhagaze",
+  "igurisha",
+  "ibyagurishijwe",
+  "ibicuruzwa",
+  "stock",
+  "vente",
+  "ventes",
+  "chiffre",
+  "biashara",
+  "mauzo",
+];
+
+const TAX_PAYMENT_DUE_KEYWORDS = [
+  "how much do i pay",
+  "how much should i pay",
+  "what do i owe",
+  "amount due",
+  "tax due",
+  "nishyura angahe",
+  "ngomba kwishyura angahe",
+  "kwishyura angahe",
+  "combien payer",
+  "kiasi gani",
+];
+
 const formatRwf = (amount) => `${Math.round(amount).toLocaleString("en-US")} RWF`;
 
 const normalizeSearchText = (value) => {
@@ -196,6 +232,10 @@ const includesAny = (message, keywords) => {
 
 const hasPayrollIntent = (message) => includesAny(message, PAYROLL_KEYWORDS);
 const hasPensionIntent = (message) => includesAny(message, PENSION_KEYWORDS);
+const hasBusinessActivityIntent = (message) =>
+  includesAny(message, BUSINESS_ACTIVITY_KEYWORDS);
+const hasTaxPaymentDueIntent = (message) =>
+  includesAny(message, TAX_PAYMENT_DUE_KEYWORDS);
 
 const buildTINAnalysis = (tin, contextData = {}) => {
   const companies = getCompaniesFromContext(contextData);
@@ -446,7 +486,136 @@ const buildPensionMessage = (language, pension) => {
   return messages[normalizeLanguage(language)].join("\n");
 };
 
+const getTaxDueFromContext = (contextData = {}) => {
+  const dashboard = contextData.taxDashboardData;
+
+  if (dashboard?.paye && dashboard?.rssb) {
+    const paye = Number(dashboard.paye.amount) || 0;
+    const rssb = Number(dashboard.rssb.total) || 0;
+
+    return {
+      company: dashboard.company,
+      currency: dashboard.payroll?.currency || "RWF",
+      paye,
+      rssb,
+      totalDue: paye + rssb,
+      source: dashboard.company?.source || dashboard.payroll?.source || "context",
+    };
+  }
+
+  const taxData = contextData.taxData;
+
+  if (taxData?.totalTaxAndRSSB) {
+    return {
+      currency: "RWF",
+      paye: Number(taxData.paye) || 0,
+      rssb: Number(taxData.totalRSSB) || 0,
+      totalDue: Number(taxData.totalTaxAndRSSB) || 0,
+      source: "payroll_context",
+    };
+  }
+
+  return null;
+};
+
+const buildTaxDueMessage = (language, taxDue) => {
+  const companyName = taxDue.company?.name ? ` ${taxDue.company.name}` : "";
+  const messages = {
+    en: [
+      `Estimated tax and statutory payroll amount due${companyName}: ${formatRwf(taxDue.totalDue)}.`,
+      `- PAYE: ${formatRwf(taxDue.paye)}`,
+      `- RSSB: ${formatRwf(taxDue.rssb)}`,
+      `- Source: ${taxDue.source}`,
+      "This is a SmartPayRW estimate, not a real payment. Generate and verify the official declaration in RRA/RSSB systems before paying.",
+    ],
+    rw: [
+      `Ikigereranyo cy'umusoro n'imisanzu yo kwishyura${companyName}: ${formatRwf(taxDue.totalDue)}.`,
+      `- PAYE: ${formatRwf(taxDue.paye)}`,
+      `- RSSB: ${formatRwf(taxDue.rssb)}`,
+      `- Aho amakuru yavuye: ${taxDue.source}`,
+      "Iki ni ikigereranyo cya SmartPayRW, si ukwishyura nyakuri. Banza wemeze declaration muri RRA/RSSB mbere yo kwishyura.",
+    ],
+    fr: [
+      `Montant fiscal et social estime a payer${companyName}: ${formatRwf(taxDue.totalDue)}.`,
+      `- PAYE: ${formatRwf(taxDue.paye)}`,
+      `- RSSB: ${formatRwf(taxDue.rssb)}`,
+      `- Source: ${taxDue.source}`,
+      "Ceci est une estimation SmartPayRW, pas un paiement reel. Verifiez la declaration officielle RRA/RSSB avant paiement.",
+    ],
+    sw: [
+      `Makadirio ya kodi na michango ya kulipa${companyName}: ${formatRwf(taxDue.totalDue)}.`,
+      `- PAYE: ${formatRwf(taxDue.paye)}`,
+      `- RSSB: ${formatRwf(taxDue.rssb)}`,
+      `- Chanzo: ${taxDue.source}`,
+      "Haya ni makadirio ya SmartPayRW, si malipo halisi. Hakiki taarifa rasmi RRA/RSSB kabla ya kulipa.",
+    ],
+  };
+
+  return messages[normalizeLanguage(language)].join("\n");
+};
+
+const buildBusinessActivityMessage = (language, businessData = {}) => {
+  const topItem = businessData.stockSummary?.[0];
+  const latestDay = businessData.dailySales?.[0];
+  const messages = {
+    en: [
+      "Business activity summary:",
+      `- Recorded sales: ${formatRwf(businessData.totalSales || 0)} from ${businessData.count || 0} transaction(s).`,
+      `- Average sale: ${formatRwf(businessData.averageSale || 0)}.`,
+      latestDay
+        ? `- Latest daily sales: ${formatRwf(latestDay.totalSales)} on ${latestDay.date}.`
+        : "- Latest daily sales: no dated sales found.",
+      topItem
+        ? `- Best product/service: ${topItem.productOrService} with ${formatRwf(topItem.totalSales)} recorded sales.`
+        : "- Best product/service: no product summary yet.",
+      "Advice: keep recording sales daily; add purchase/opening stock data if you need true remaining-stock tracking.",
+    ],
+    rw: [
+      "Incamake y'ubucuruzi:",
+      `- Igurisha ryanditswe: ${formatRwf(businessData.totalSales || 0)} muri transactions ${businessData.count || 0}.`,
+      `- Impuzandengo ya buri gurisha: ${formatRwf(businessData.averageSale || 0)}.`,
+      latestDay
+        ? `- Igurisha rya vuba ku munsi: ${formatRwf(latestDay.totalSales)} ku itariki ${latestDay.date}.`
+        : "- Igurisha rya vuba ku munsi: nta makuru ahari.",
+      topItem
+        ? `- Igicuruzwa/serivisi iyoboye: ${topItem.productOrService} ifite ${formatRwf(topItem.totalSales)}.`
+        : "- Igicuruzwa/serivisi iyoboye: nta ncamake irahari.",
+      "Inama: komeza wandike igurisha buri munsi; ongeramo opening stock na purchases niba ushaka kumenya stock isigaye.",
+    ],
+    fr: [
+      "Resume de l'activite business:",
+      `- Ventes enregistrees: ${formatRwf(businessData.totalSales || 0)} sur ${businessData.count || 0} transaction(s).`,
+      `- Vente moyenne: ${formatRwf(businessData.averageSale || 0)}.`,
+      latestDay
+        ? `- Dernieres ventes journalieres: ${formatRwf(latestDay.totalSales)} le ${latestDay.date}.`
+        : "- Dernieres ventes journalieres: aucune vente datee.",
+      topItem
+        ? `- Meilleur produit/service: ${topItem.productOrService} avec ${formatRwf(topItem.totalSales)}.`
+        : "- Meilleur produit/service: pas encore de resume.",
+      "Conseil: enregistrez les ventes chaque jour; ajoutez stock initial et achats pour suivre le stock restant.",
+    ],
+    sw: [
+      "Muhtasari wa biashara:",
+      `- Mauzo yaliyorekodiwa: ${formatRwf(businessData.totalSales || 0)} kutoka miamala ${businessData.count || 0}.`,
+      `- Wastani wa mauzo: ${formatRwf(businessData.averageSale || 0)}.`,
+      latestDay
+        ? `- Mauzo ya karibuni kwa siku: ${formatRwf(latestDay.totalSales)} tarehe ${latestDay.date}.`
+        : "- Mauzo ya karibuni kwa siku: hakuna data.",
+      topItem
+        ? `- Bidhaa/huduma bora: ${topItem.productOrService} yenye ${formatRwf(topItem.totalSales)}.`
+        : "- Bidhaa/huduma bora: hakuna muhtasari bado.",
+      "Ushauri: rekodi mauzo kila siku; ongeza stock ya mwanzo na manunuzi ili kufuatilia stock iliyobaki.",
+    ],
+  };
+
+  return messages[normalizeLanguage(language)].join("\n");
+};
+
 const detectAssistantIntent = (message) => {
+  if (hasTaxPaymentDueIntent(message)) {
+    return "compliance";
+  }
+
   if (hasPensionIntent(message)) {
     return "pension";
   }
@@ -463,6 +632,10 @@ const detectAssistantIntent = (message) => {
     return "employees";
   }
 
+  if (hasBusinessActivityIntent(message)) {
+    return "business";
+  }
+
   if (includesAny(message, COMPANY_KEYWORDS)) {
     return "company";
   }
@@ -473,19 +646,24 @@ const detectAssistantIntent = (message) => {
 const buildContextInsight = (language, contextData = {}) => {
   const employees = contextData?.employeesData;
   const companies = contextData?.companyData;
+  const businessData = contextData?.businessData;
+  const taxDue = getTaxDueFromContext(contextData);
   const companyCount = companies?.count || companies?.companies?.length || 0;
   const employeeCount = employees?.count || employees?.employees?.length || 0;
   const salaryTotal = Number(employees?.totalMonthlyGrossSalary) || 0;
+  const transactionCount = businessData?.count || 0;
+  const salesTotal = Number(businessData?.totalSales) || 0;
+  const taxDueTotal = Number(taxDue?.totalDue) || 0;
 
-  if (!companyCount && !employeeCount && !salaryTotal) {
+  if (!companyCount && !employeeCount && !salaryTotal && !transactionCount && !taxDueTotal) {
     return "";
   }
 
   const messages = {
-    en: `Available SmartPayRW context: ${companyCount} company record(s), ${employeeCount} employee record(s), and ${formatRwf(salaryTotal)} in summarized monthly gross salaries.`,
-    rw: `Context ya SmartPayRW iboneka: ibigo ${companyCount}, abakozi ${employeeCount}, n'imishahara mbumbe ya buri kwezi ${formatRwf(salaryTotal)}.`,
-    fr: `Contexte SmartPayRW disponible: ${companyCount} societe(s), ${employeeCount} employe(s), et ${formatRwf(salaryTotal)} de salaires bruts mensuels resumes.`,
-    sw: `Muktadha wa SmartPayRW uliopo: rekodi ${companyCount} za kampuni, rekodi ${employeeCount} za wafanyakazi, na mishahara jumla ya mwezi ${formatRwf(salaryTotal)}.`,
+    en: `Available SmartPayRW context: ${companyCount} company record(s), ${employeeCount} employee record(s), ${formatRwf(salaryTotal)} monthly gross salaries, ${transactionCount} business transaction(s), ${formatRwf(salesTotal)} sales, and ${formatRwf(taxDueTotal)} estimated PAYE/RSSB due.`,
+    rw: `Context ya SmartPayRW iboneka: ibigo ${companyCount}, abakozi ${employeeCount}, imishahara mbumbe ya buri kwezi ${formatRwf(salaryTotal)}, transactions z'ubucuruzi ${transactionCount}, igurisha ${formatRwf(salesTotal)}, n'ikigereranyo cya PAYE/RSSB ${formatRwf(taxDueTotal)}.`,
+    fr: `Contexte SmartPayRW disponible: ${companyCount} societe(s), ${employeeCount} employe(s), ${formatRwf(salaryTotal)} de salaires bruts mensuels, ${transactionCount} transaction(s) business, ${formatRwf(salesTotal)} de ventes, et ${formatRwf(taxDueTotal)} PAYE/RSSB estime.`,
+    sw: `Muktadha wa SmartPayRW uliopo: kampuni ${companyCount}, wafanyakazi ${employeeCount}, mishahara jumla ${formatRwf(salaryTotal)}, miamala ${transactionCount}, mauzo ${formatRwf(salesTotal)}, na makadirio ya PAYE/RSSB ${formatRwf(taxDueTotal)}.`,
   };
 
   return messages[normalizeLanguage(language)];
@@ -664,6 +842,26 @@ export const getPayrollIntelligenceResponse = (
       type: tinAnalysis.registered ? "tin_analysis" : "tin_not_registered",
       message: buildTINMessage(language, tinAnalysis),
       data: tinAnalysis,
+    };
+  }
+
+  if (hasTaxPaymentDueIntent(message)) {
+    const taxDue = getTaxDueFromContext(contextData);
+
+    if (taxDue) {
+      return {
+        type: "tax_due_estimate",
+        message: buildTaxDueMessage(language, taxDue),
+        data: taxDue,
+      };
+    }
+  }
+
+  if (hasBusinessActivityIntent(message) && contextData?.businessData) {
+    return {
+      type: "business_activity_summary",
+      message: buildBusinessActivityMessage(language, contextData.businessData),
+      data: contextData.businessData,
     };
   }
 
