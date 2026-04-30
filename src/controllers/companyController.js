@@ -2,6 +2,7 @@
 import Company from "../models/Company.js";
 
 const normalizeTIN = (tin) => String(tin || "").replace(/\D/g, "");
+const getUserId = (req) => req.user?.id || req.user?._id?.toString?.();
 
 const serializeCompany = (company) => ({
   id: company._id?.toString?.() || company.id,
@@ -14,12 +15,15 @@ const serializeCompany = (company) => ({
 
 export const registerCompany = async (req, res, next) => {
   try {
-    const { name, businessType } = req.body || {};
-    const tin = normalizeTIN(req.body?.tin);
+    const { name, tin: rawTin, businessType } = req.body || {};
+    const companyName = String(name || "").trim();
+    const companyBusinessType = String(businessType || "").trim();
+    const tin = normalizeTIN(rawTin);
+    const owner = getUserId(req);
 
-    if (!name || !tin || !businessType) {
+    if (!companyName || !rawTin || !companyBusinessType) {
       return res.status(400).json({
-        message: "Company name, TIN, and business type are required",
+        message: "All fields are required",
       });
     }
 
@@ -27,23 +31,25 @@ export const registerCompany = async (req, res, next) => {
       return res.status(400).json({ message: "TIN must be a 9-digit number" });
     }
 
+    if (!owner) {
+      return res.status(401).json({ message: "Not authorized, user missing" });
+    }
+
     const company = await Company.create({
-      name,
+      name: companyName,
       tin,
-      businessType,
-      owner: req.user._id,
+      businessType: companyBusinessType,
+      owner,
     });
 
     return res.status(201).json({
-      success: true,
-      message: "Company registered in SmartPay",
-      data: serializeCompany(company),
+      message: "Company registered successfully",
+      company: serializeCompany(company),
     });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({
-        success: false,
-        message: "Company TIN is already registered in SmartPay",
+        message: "Company with this TIN already exists",
       });
     }
 
@@ -56,7 +62,7 @@ export const createCompany = registerCompany;
 export const getCompany = async (req, res, next) => {
   try {
     const { page, limit } = req.query;
-    const query = { owner: req.user._id };
+    const query = { owner: getUserId(req) };
 
     if (page || limit) {
       const safePage = Math.max(Number(page) || 1, 1);
@@ -91,3 +97,5 @@ export const getCompany = async (req, res, next) => {
     return next(error);
   }
 };
+
+export const getMyCompanies = getCompany;

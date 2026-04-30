@@ -6,6 +6,22 @@ import Payroll from "../models/Payroll.js";
 import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 
+const serializeCompany = (company) => ({
+  id: company._id?.toString?.() || company.id,
+  name: company.name,
+  tin: company.tin,
+  businessType: company.businessType,
+  owner: company.owner?._id
+    ? {
+        id: company.owner._id.toString(),
+        name: company.owner.name,
+        email: company.owner.email,
+        role: company.owner.role,
+      }
+    : company.owner?.toString?.() || company.owner,
+  createdAt: company.createdAt,
+});
+
 const summarizePayroll = async () => {
   const [summary] = await Payroll.aggregate([
     {
@@ -108,3 +124,16 @@ export const getAdminOverview = async (req, res, next) => {
   }
 };
 
+export const getAdminCompanies = async (req, res, next) => {
+  try {
+    const companies = await Company.find()
+      .populate("owner", "name email role")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      companies: companies.map(serializeCompany),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
