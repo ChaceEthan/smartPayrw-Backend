@@ -1,20 +1,16 @@
-// @ts-nocheck
-import { getAIResponse } from '../services/aiService.js';
+import { getAIResponse } from "../services/aiService.js";
 
-/**
- * Controller to handle AI chat requests
- */
 export const chatWithAI = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, temperature } = req.body;
 
-    if (!message) {
-      return res.status(400).json({ message: 'Message is required' });
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ message: "Message is required" });
     }
 
-    const response = await getAIResponse(message);
-    res.status(200).json({ response });
+    const response = await getAIResponse(message.trim(), { temperature });
+    return res.status(200).json({ response });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(502).json({ message: "AI request failed", error: error.message });
   }
 };

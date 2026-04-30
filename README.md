@@ -1,31 +1,44 @@
-SmartPay RW backend is a Node.js API for managing payroll and RSSB declarations for SMEs in Rwanda.
+# SmartPay RW Backend
 
-🚀 Features
+Node.js/Express API for SmartPay RW payroll, RSSB, authentication, and AI assistant workflows.
 
-- User authentication (JWT)
-- Employee management
-- Payroll calculation (PAYE, RSSB)
-- Reports generation
+## Scripts
 
-🛠️ Tech Stack
-
-- Node.js
-- Express
-- MongoDB (Mongoose)
-- JWT Authentication
-
-⚙️ Setup
-
+```bash
 npm install
 npm run dev
+npm start
+```
 
-🔐 Environment Variables
+## Environment
 
-Create a ".env" file:
+Copy `.env.example` to `.env` locally and configure:
 
+```bash
 PORT=5000
 MONGO_URI=your_mongodb_uri
-JWT_SECRET=your_secret
+JWT_SECRET=your_long_random_secret
+OPENROUTER_API_KEY=your_openrouter_key
+CORS_ORIGIN=https://your-frontend-domain.com
+```
 
-📌 Goal
-To simplify payroll and compliance for small businesses in Rwanda.
+Optional values include `JWT_EXPIRES_IN`, `OPENROUTER_MODEL`, `OPENROUTER_TIMEOUT_MS`, `MONGO_TIMEOUT_MS`, `APP_URL`, and `APP_NAME`.
+
+## Core Endpoints
+
+- `GET /api/health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/ai/chat`
+- `GET|POST /api/companies`
+- `GET|POST /api/employees`
+- `POST /api/payroll/calculate`
+- `GET /api/payroll/history`
+- `GET /api/reports/tax`
+
+Protected endpoints require `Authorization: Bearer <token>`.
+
+## Render
+
+Use `npm start` as the start command. Set all required environment variables in Render, including `PORT`, `MONGO_URI`, `JWT_SECRET`, `OPENROUTER_API_KEY`, and `CORS_ORIGIN`.

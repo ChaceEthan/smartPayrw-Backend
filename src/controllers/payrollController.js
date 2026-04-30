@@ -39,3 +39,10 @@ export const calculatePayroll = async (req, res) => {
     });
   }
 };
+
+export const getPayrollHistory = async (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: [],
+  });
+};

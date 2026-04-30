@@ -1,10 +1,21 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-// Schema for system administrators and company HR users
-const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-}, { timestamps: true });
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: String, required: true },
+    role: { type: String, enum: ["admin", "hr", "user"], default: "user" },
+  },
+  { timestamps: true }
+);
 
-const User = mongoose.model('User', userSchema);
+userSchema.methods.toJSON = function toJSON() {
+  const user = this.toObject();
+  delete user.password;
+  delete user.__v;
+  return user;
+};
+
+const User = mongoose.model("User", userSchema);
 export default User;
