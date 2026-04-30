@@ -11,6 +11,7 @@ export const chatWithAI = async (req, res) => {
     const response = await getAIResponse(message.trim(), { temperature });
     return res.status(200).json({ response });
   } catch (error) {
-    return res.status(502).json({ message: "AI request failed", error: error.message });
+    console.error(`AI request failed: ${error.message}`);
+    return res.status(502).json({ message: "AI request failed" });
   }
 };

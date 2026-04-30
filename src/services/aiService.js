@@ -7,6 +7,16 @@ export const getAIResponse = async (message, options = {}) => {
     throw new Error("OPENROUTER_API_KEY is not configured");
   }
 
+  const headers = {
+    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    "Content-Type": "application/json",
+    "X-Title": process.env.APP_NAME || "SmartPayRW Backend",
+  };
+
+  if (process.env.APP_URL) {
+    headers["HTTP-Referer"] = process.env.APP_URL;
+  }
+
   try {
     const response = await axios.post(
       OPENROUTER_URL,
@@ -14,15 +24,11 @@ export const getAIResponse = async (message, options = {}) => {
         model: process.env.OPENROUTER_MODEL || "mistralai/mistral-7b-instruct",
         messages: [{ role: "user", content: message }],
         temperature: options.temperature ?? 0.3,
+        max_tokens: Number(process.env.OPENROUTER_MAX_TOKENS) || 700,
       },
       {
         timeout: Number(process.env.OPENROUTER_TIMEOUT_MS) || 30000,
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:5000",
-          "X-Title": process.env.APP_NAME || "SmartPayRW Backend",
-        },
+        headers,
       }
     );
 

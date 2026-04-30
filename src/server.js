@@ -5,13 +5,21 @@ import app from "./app.js";
 import connectDB from "./config/db.js";
 
 const PORT = process.env.PORT || 5000;
+const HOST = "0.0.0.0";
+
+const validateEnvironment = () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not defined in environment variables");
+  }
+};
 
 const startServer = async () => {
+  validateEnvironment();
   await connectDB();
 
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(
-      `Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`
+      `Server running in ${process.env.NODE_ENV || "development"} mode on ${HOST}:${PORT}`
     );
   });
 

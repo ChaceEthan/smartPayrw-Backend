@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import mongoose from "mongoose";
 
 import aiRoutes from "./routes/aiRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -11,11 +12,6 @@ import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 
 const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGIN || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
 app.disable("x-powered-by");
 
 app.use((req, res, next) => {
@@ -25,29 +21,37 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-  })
-);
+app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/api/test", (req, res) => {
-  res.json({ message: "SmartPay RW API working" });
+const mongoStatus = () => {
+  const states = {
+    0: "disconnected",
+    1: "connected",
+    2: "connecting",
+    3: "disconnecting",
+  };
+
+  return states[mongoose.connection.readyState] || "unknown";
+};
+
+const healthResponse = () => ({
+  status: "ok",
+  environment: process.env.NODE_ENV || "development",
+  mongodb: mongoStatus(),
+  timestamp: new Date().toISOString(),
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
+app.get("/", (req, res) => {
+  res.status(200).json({
     status: "ok",
-    environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toISOString(),
+    message: "SmartPay RW API is running",
+  });
+});
+
+app.get(["/health", "/api/health"], (req, res) => {
+  res.json({
+    ...healthResponse(),
   });
 });
 
