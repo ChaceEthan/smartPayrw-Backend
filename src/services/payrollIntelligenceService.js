@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { calculatePAYE } from "../utils/calculatePAYE.js";
 import { calculateRSSB } from "../utils/calculateRSSB.js";
+import { calculatePensionForSalary } from "./pensionService.js";
 
 const SUPPORTED_LANGUAGES = {
   en: "English",
@@ -37,6 +38,22 @@ const PAYROLL_KEYWORDS = [
   "mshahara",
   "umushahara",
   "umusoro",
+];
+
+const PENSION_KEYWORDS = [
+  "pension",
+  "rssb",
+  "social security",
+  "contribution",
+  "contributions",
+  "imisanzu",
+  "ubwiteganyirize",
+  "nishyura",
+  "yanjye",
+  "angahe",
+  "cotisation",
+  "retraite",
+  "mchango",
 ];
 
 const EMPLOYEE_KEYWORDS = [
@@ -160,6 +177,7 @@ const includesAny = (message, keywords) => {
 };
 
 const hasPayrollIntent = (message) => includesAny(message, PAYROLL_KEYWORDS);
+const hasPensionIntent = (message) => includesAny(message, PENSION_KEYWORDS);
 
 const buildTINAnalysis = (tin, contextData = {}) => {
   const companies = getCompaniesFromContext(contextData);
@@ -324,7 +342,46 @@ const buildPayrollMessage = (language, payroll) => {
   return messages[normalizeLanguage(language)].join("\n");
 };
 
+const buildPensionMessage = (language, pension) => {
+  const messages = {
+    en: [
+      `RSSB pension estimate for ${formatRwf(pension.salaryBase)}:`,
+      `- Employee contribution: ${formatRwf(pension.employeeContribution)}`,
+      `- Employer contribution: ${formatRwf(pension.employerContribution)}`,
+      `- Total pension: ${formatRwf(pension.totalPension)}`,
+      "This uses the SmartPayRW Rwanda pension summary: 3% employee contribution and 5% employer planning contribution.",
+    ],
+    rw: [
+      `Ikigereranyo cya pension/RSSB kuri ${formatRwf(pension.salaryBase)}:`,
+      `- Umusanzu w'umukozi: ${formatRwf(pension.employeeContribution)}`,
+      `- Umusanzu w'umukoresha: ${formatRwf(pension.employerContribution)}`,
+      `- Pension yose: ${formatRwf(pension.totalPension)}`,
+      "Ibi bikoresha incamake ya SmartPayRW: umukozi atanga 3%, umukoresha agatanga 5%.",
+    ],
+    fr: [
+      `Estimation pension/RSSB pour ${formatRwf(pension.salaryBase)}:`,
+      `- Contribution employe: ${formatRwf(pension.employeeContribution)}`,
+      `- Contribution employeur: ${formatRwf(pension.employerContribution)}`,
+      `- Pension totale: ${formatRwf(pension.totalPension)}`,
+      "Ce calcul utilise le resume SmartPayRW Rwanda: 3% employe et 5% employeur pour la planification.",
+    ],
+    sw: [
+      `Makadirio ya pension/RSSB kwa ${formatRwf(pension.salaryBase)}:`,
+      `- Mchango wa mfanyakazi: ${formatRwf(pension.employeeContribution)}`,
+      `- Mchango wa mwajiri: ${formatRwf(pension.employerContribution)}`,
+      `- Jumla ya pension: ${formatRwf(pension.totalPension)}`,
+      "Hesabu hii inatumia muhtasari wa SmartPayRW Rwanda: 3% mfanyakazi na 5% mwajiri.",
+    ],
+  };
+
+  return messages[normalizeLanguage(language)].join("\n");
+};
+
 const detectAssistantIntent = (message) => {
+  if (hasPensionIntent(message)) {
+    return "pension";
+  }
+
   if (hasPayrollIntent(message)) {
     return "payroll";
   }
@@ -366,6 +423,32 @@ const buildContextInsight = (language, contextData = {}) => {
 };
 
 const localGuidance = {
+  pension: {
+    en: [
+      "RSSB pension guidance:",
+      "Explanation: for payroll planning, SmartPayRW estimates pension at 3% paid by the employee and 5% paid by the employer.",
+      "Steps: confirm the gross salary base, calculate the employee contribution, calculate the employer contribution, then reconcile the total before declaration.",
+      "Advice: keep the employee RSSB number and payslip records ready before filing.",
+    ],
+    rw: [
+      "Inama kuri pension/RSSB:",
+      "Ibisobanuro: muri SmartPayRW, pension ibarwa ku gipimo cya 3% y'umukozi na 5% y'umukoresha.",
+      "Intambwe: emeza umushahara mbumbe, bara umusanzu w'umukozi, bara umusanzu w'umukoresha, hanyuma uhuze totals mbere ya declaration.",
+      "Inama: bika nimero ya RSSB y'umukozi na payslips mbere yo gutanga declaration.",
+    ],
+    fr: [
+      "Conseil pension/RSSB:",
+      "Explication: pour la planification payroll, SmartPayRW estime la pension a 3% paye par l'employe et 5% paye par l'employeur.",
+      "Etapes: confirmer le salaire brut, calculer la contribution employe, calculer la contribution employeur, puis rapprocher le total avant declaration.",
+      "Conseil: gardez le numero RSSB de l'employe et les bulletins avant la declaration.",
+    ],
+    sw: [
+      "Mwongozo wa pension/RSSB:",
+      "Maelezo: kwa upangaji wa payroll, SmartPayRW hukadiria pension kwa 3% ya mfanyakazi na 5% ya mwajiri.",
+      "Hatua: thibitisha mshahara jumla, hesabu mchango wa mfanyakazi, hesabu mchango wa mwajiri, kisha linganisha jumla kabla ya kuwasilisha.",
+      "Ushauri: hifadhi nambari ya RSSB ya mfanyakazi na payslips kabla ya kuwasilisha.",
+    ],
+  },
   payroll: {
     en: [
       "Payroll guidance:",
@@ -515,11 +598,28 @@ export const getPayrollIntelligenceResponse = (
     };
   }
 
+  const grossSalary = extractSalaryAmount(message);
+
+  if (hasPensionIntent(message)) {
+    const pension =
+      grossSalary !== null
+        ? calculatePensionForSalary(grossSalary)
+        : contextData?.pensionData?.salaryBase
+          ? contextData.pensionData
+          : null;
+
+    if (pension) {
+      return {
+        type: "pension_estimate",
+        message: buildPensionMessage(language, pension),
+        data: pension,
+      };
+    }
+  }
+
   if (!hasPayrollIntent(message)) {
     return null;
   }
-
-  const grossSalary = extractSalaryAmount(message);
 
   if (!grossSalary) {
     return null;

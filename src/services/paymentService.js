@@ -206,10 +206,10 @@ export const initiatePayment = async ({
 
   return {
     transaction: serializeTransaction(transaction),
-    providerMode: hasApiKey ? "configured_safe_mode" : "simulated",
+    providerMode: hasApiKey ? "provider connection ready" : "demo processing",
     message: hasApiKey
-      ? "Payment request accepted in safe mode"
-      : "Payment request simulated because provider API key is unavailable",
+      ? "We received the payment request. It is pending customer confirmation."
+      : "We created a demo payment request for testing. It is pending confirmation.",
   };
 };
 

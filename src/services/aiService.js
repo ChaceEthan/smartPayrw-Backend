@@ -37,6 +37,9 @@ const buildAIContextPayload = (message, language, context = {}) => {
     payrollContext: context.payrollContext || null,
     employeesData: context.employeesData || null,
     companyData: context.companyData || null,
+    pensionData: context.pensionData || null,
+    taxData: context.taxData || null,
+    complianceData: context.complianceData || null,
   };
 };
 
@@ -67,6 +70,7 @@ export const getAIResponse = async (message, options = {}) => {
           MASTER_SYSTEM_PROMPT,
           `Respond only in ${getLanguageName(language)}.`,
           "Answer any SmartPayRW business, payroll, employee, tax, compliance, salary, or company operations question with explanation, steps, and practical advice.",
+          "Use pensionData, taxData, complianceData, and employeesData to answer RSSB and pension questions.",
           "Use the supplied JSON context when available. If data is missing, say what should be verified instead of inventing private records.",
         ].join("\n"),
       },

@@ -1,5 +1,6 @@
 import Employee from "../models/Employee.js";
 import Transaction from "../models/Transaction.js";
+import { calculatePensionForSalary } from "./pensionService.js";
 import { calculatePAYE } from "../utils/calculatePAYE.js";
 import { calculateRSSB } from "../utils/calculateRSSB.js";
 
@@ -21,6 +22,7 @@ const buildPayrollAnalytics = (employees) => {
       const salary = Number(employee.salary) || 0;
       const paye = calculatePAYE(salary);
       const rssb = calculateRSSB(salary);
+      const pension = calculatePensionForSalary(salary);
       const netPay = salary - paye - rssb.employeeRSSB;
 
       totals.totalSalaries += salary;
@@ -28,6 +30,9 @@ const buildPayrollAnalytics = (employees) => {
       totals.totalEmployeeRSSB += rssb.employeeRSSB;
       totals.totalEmployerRSSB += rssb.employerRSSB;
       totals.totalRSSB += rssb.totalRSSB;
+      totals.employeePension += pension.employeeContribution;
+      totals.employerPension += pension.employerContribution;
+      totals.totalPension += pension.totalPension;
       totals.netPayouts += netPay;
 
       return totals;
@@ -38,6 +43,9 @@ const buildPayrollAnalytics = (employees) => {
       totalEmployeeRSSB: 0,
       totalEmployerRSSB: 0,
       totalRSSB: 0,
+      employeePension: 0,
+      employerPension: 0,
+      totalPension: 0,
       netPayouts: 0,
     }
   );
@@ -97,13 +105,43 @@ export const getDashboardAnalytics = async ({ limit = 10 } = {}) => {
   ]);
 
   const payrollAnalytics = buildPayrollAnalytics(employees);
+  const taxes = {
+    paye: payrollAnalytics.totalPAYE,
+    employeeRSSB: payrollAnalytics.totalEmployeeRSSB,
+    employerRSSB: payrollAnalytics.totalEmployerRSSB,
+    totalRSSB: payrollAnalytics.totalRSSB,
+    total: payrollAnalytics.totalPAYE + payrollAnalytics.totalRSSB,
+    description:
+      "Total taxes combine PAYE and RSSB contributions for the current employee salary records.",
+  };
+  const pension = {
+    employeeContribution: payrollAnalytics.employeePension,
+    employerContribution: payrollAnalytics.employerPension,
+    totalPension: payrollAnalytics.totalPension,
+    description:
+      "RSSB pension estimate uses 3% employee contribution and 5% employer planning contribution.",
+  };
+  const employeeSummary = {
+    total: employees.length,
+    salaryTotal: payrollAnalytics.totalSalaries,
+    averageSalary: employees.length
+      ? Math.round(payrollAnalytics.totalSalaries / employees.length)
+      : 0,
+  };
 
   return {
     totalEmployees: employees.length,
     totalPayroll: payrollAnalytics.totalSalaries,
-    totalTaxes: payrollAnalytics.totalPAYE + payrollAnalytics.totalEmployeeRSSB,
+    payrollTotal: payrollAnalytics.totalSalaries,
+    totalTaxes: taxes.total,
+    taxes,
+    pension,
+    employees: employeeSummary,
     recentTransactions: recentTransactions.map(serializeTransaction),
     paymentStats,
-    payrollAnalytics,
+    payrollAnalytics: {
+      ...payrollAnalytics,
+      totalTaxes: taxes.total,
+    },
   };
 };

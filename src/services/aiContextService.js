@@ -3,6 +3,10 @@ import mongoose from "mongoose";
 
 import Company from "../models/Company.js";
 import Employee from "../models/Employee.js";
+import { getTaxContextData } from "./complianceService.js";
+import { buildPensionSummaryFromEmployees } from "./pensionService.js";
+import { calculatePAYE } from "../utils/calculatePAYE.js";
+import { calculateRSSB } from "../utils/calculateRSSB.js";
 
 const MAX_CONTEXT_RECORDS = 20;
 
@@ -74,6 +78,56 @@ const summarizeCompanies = (companies = []) => {
   };
 };
 
+const getEmployeesForCalculations = (employeesData) => {
+  if (!employeesData) {
+    return [];
+  }
+
+  if (Array.isArray(employeesData)) {
+    return employeesData;
+  }
+
+  if (Array.isArray(employeesData.employees)) {
+    return employeesData.employees;
+  }
+
+  return [];
+};
+
+const buildPayrollTaxSummary = (employeesData) => {
+  const employees = getEmployeesForCalculations(employeesData);
+
+  const totals = employees.reduce(
+    (summary, employee) => {
+      const salary = Number(employee?.salary) || 0;
+      const paye = calculatePAYE(salary);
+      const rssb = calculateRSSB(salary);
+
+      summary.salaryBase += salary;
+      summary.paye += paye;
+      summary.employeeRSSB += rssb.employeeRSSB;
+      summary.employerRSSB += rssb.employerRSSB;
+      summary.totalRSSB += rssb.totalRSSB;
+      summary.totalTaxAndRSSB += paye + rssb.totalRSSB;
+
+      return summary;
+    },
+    {
+      salaryBase: 0,
+      paye: 0,
+      employeeRSSB: 0,
+      employerRSSB: 0,
+      totalRSSB: 0,
+      totalTaxAndRSSB: 0,
+    }
+  );
+
+  return {
+    ...totals,
+    rules: getTaxContextData(),
+  };
+};
+
 const getDatabaseContext = async () => {
   if (mongoose.connection.readyState !== 1) {
     return {
@@ -109,14 +163,24 @@ export const buildAIContextPayload = async ({
   companyData,
 }) => {
   const databaseContext = await getDatabaseContext();
+  const finalEmployeesData =
+    summarizeEmployees(employeesData) || employeesData || databaseContext.employeesData;
+  const finalCompanyData =
+    summarizeCompanies(companyData) || companyData || databaseContext.companyData;
+  const pensionData = {
+    ...buildPensionSummaryFromEmployees(getEmployeesForCalculations(finalEmployeesData)),
+    description:
+      "RSSB pension context for AI answers: employee contribution is 3% and employer planning contribution is 5% of salary base.",
+  };
 
   return {
     message,
     language,
     payrollContext: payrollContext || null,
-    employeesData:
-      summarizeEmployees(employeesData) || employeesData || databaseContext.employeesData,
-    companyData:
-      summarizeCompanies(companyData) || companyData || databaseContext.companyData,
+    employeesData: finalEmployeesData,
+    companyData: finalCompanyData,
+    pensionData,
+    taxData: buildPayrollTaxSummary(finalEmployeesData),
+    complianceData: getTaxContextData().compliance,
   };
 };

@@ -34,6 +34,7 @@ Optional values include `JWT_EXPIRES_IN`, `OPENROUTER_MODEL`, `OPENROUTER_TIMEOU
 - `GET /api/auth/me`
 - `POST /api/ai/chat`
 - `GET /api/analytics/dashboard`
+- `GET /api/compliance`
 - `GET|POST /api/companies`
 - `GET|POST /api/employees`
 - `GET /api/payments`
@@ -41,6 +42,7 @@ Optional values include `JWT_EXPIRES_IN`, `OPENROUTER_MODEL`, `OPENROUTER_TIMEOU
 - `POST /api/payments/airtel/request`
 - `POST /api/payments/callback`
 - `POST /api/payments/webhook`
+- `GET /api/pension`
 - `POST /api/payroll/calculate`
 - `GET /api/payroll/history`
 - `GET /api/reports/tax`
